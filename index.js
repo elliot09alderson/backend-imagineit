@@ -28,6 +28,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/forms', formsRoutes);
+import paymentRoutes from './routes/payment.js';
+app.use('/api/payment', paymentRoutes);
+import contactRoutes from './routes/contact.js';
+app.use('/api/contact', contactRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {

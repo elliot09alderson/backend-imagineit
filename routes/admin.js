@@ -1,6 +1,7 @@
 import express from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import Asset from '../models/Asset.js';
+import Community from '../models/Community.js';
 import { upload } from '../config/cloudinary.js';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fetch from 'node-fetch';
@@ -33,13 +34,14 @@ router.post('/assets', upload.single('image'), async (req, res) => {
             return res.status(400).json({ error: "No image uploaded" });
         }
 
-        const { pose_category, preedited_prompt, admin_notes } = req.body;
+        const { pose_category, preedited_prompt, admin_notes, gender } = req.body;
         
         // Get Cloudinary URL from multer upload
         const cloudinary_url = req.file.path;
         
         const newAsset = new Asset({
             pose_category,
+            gender,
             cloudinary_url,
             preedited_prompt,
             admin_notes
@@ -76,13 +78,27 @@ router.post('/extract-prompt', upload.single('image'), async (req, res) => {
         
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
-        const prompt = `Describe the artistic style, lighting, composition, and subject of this image in a detailed prompt suitable for image generation. Focus on visual elements. Keep it under 50 words.`;
+        const prompt = `Analyze this image. 
+        1. Describe the artistic style, lighting, composition, and subject in a detailed prompt suitable for image generation (under 50 words).
+        2. Classify the gender of the main subject as either 'MALE' or 'FEMALE'.
+        3. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT'].
+
+        Return the response in this JSON format:
+        {
+            "prompt": "your description here",
+            "gender": "MALE" or "FEMALE",
+            "pose": "CATEGORY_NAME"
+        }`;
 
         const result = await model.generateContent([prompt, imagePart]);
         const response = await result.response;
         const text = response.text();
+        
+        // Clean up markdown code blocks if present
+        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const data = JSON.parse(jsonStr);
 
-        res.json({ prompt: text });
+        res.json(data);
 
     } catch (err) {
         console.error("Prompt Extraction Error:", err);
@@ -104,6 +120,50 @@ router.delete('/assets/:id', async (req, res) => {
 
         await Asset.findByIdAndDelete(req.params.id);
         res.json({ message: "Asset deleted" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/admin/community/:id - Delete community post
+router.delete('/community/:id', async (req, res) => {
+    try {
+        const post = await Community.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ error: "Post not found" });
+        }
+
+        // Optional: Delete from Cloudinary
+        // const publicId = post.generated_image_url.split('/').pop().split('.')[0];
+        // await cloudinary.uploader.destroy(`art-ai-generated/${publicId}`);
+
+        await Community.findByIdAndDelete(req.params.id);
+        res.json({ message: "Community post deleted" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/admin/cleanup-community - Fix base64 URLs
+router.post('/cleanup-community', async (req, res) => {
+    try {
+        const posts = await Community.find({ original_image_url: { $regex: /^data:image/ } });
+        let updatedCount = 0;
+
+        for (const post of posts) {
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(post.original_image_url, {
+                    folder: 'art-ai-editor'
+                });
+                post.original_image_url = uploadResponse.secure_url;
+                await post.save();
+                updatedCount++;
+            } catch (err) {
+                console.error(`Failed to fix post ${post._id}:`, err);
+            }
+        }
+
+        res.json({ message: `Fixed ${updatedCount} posts` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

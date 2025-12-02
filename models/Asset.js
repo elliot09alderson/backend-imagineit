@@ -6,6 +6,11 @@ const AssetSchema = new mongoose.Schema({
         required: true,
         enum: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT']
     },
+    gender: {
+        type: String,
+        enum: ['MALE', 'FEMALE', 'NEUTRAL'],
+        default: 'NEUTRAL'
+    },
     cloudinary_url: {
         type: String,
         required: true

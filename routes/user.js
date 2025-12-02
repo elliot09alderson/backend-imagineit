@@ -5,6 +5,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { upload } from '../config/cloudinary.js';
 import fetch from 'node-fetch';
 import auth from '../middleware/auth.js';
+import Community from '../models/Community.js';
+import cloudinary from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -51,28 +53,55 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
         
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
-        const prompt = `Analyze the pose of the person in this image. Classify it into exactly one of these categories: 
-        ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT']. 
-        Return ONLY the category name.`;
+        const prompt = `Analyze the person in this image. 
+        1. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT'].
+        2. Classify the gender as either 'MALE' or 'FEMALE'.
+
+        Return the response in this JSON format:
+        {
+            "pose": "CATEGORY_NAME",
+            "gender": "MALE" or "FEMALE"
+        }`;
 
         const result = await model.generateContent([prompt, imagePart]);
         const response = await result.response;
-        const poseCategory = response.text().trim();
+        const text = response.text();
+        
+        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const analysis = JSON.parse(jsonStr);
+        
+        const poseCategory = analysis.pose;
+        const gender = analysis.gender;
 
         // Query MongoDB for matching assets
+        // Match assets that are either specific to the gender OR are NEUTRAL (applicable to both)
         const matches = await Asset.aggregate([
-            { $match: { pose_category: poseCategory } },
-            { $sample: { size: 5 } }
+            { 
+                $match: { 
+                    pose_category: poseCategory, 
+                    $or: [
+                        { gender: gender },
+                        { gender: 'NEUTRAL' },
+                        { gender: { $exists: false } } // Handle legacy docs
+                    ]
+                } 
+            },
+            { $sample: { size: 10 } }
         ]);
 
         // Fallback if no exact matches found (optional, for robustness)
         let finalMatches = matches;
         if (matches.length === 0) {
-             finalMatches = await Asset.aggregate([{ $sample: { size: 5 } }]);
+             // Try matching just the pose if gender specific ones aren't found
+             finalMatches = await Asset.aggregate([
+                { $match: { pose_category: poseCategory } },
+                { $sample: { size: 10 } }
+             ]);
         }
 
         res.json({ 
             pose: poseCategory, 
+            gender: gender,
             matches: finalMatches,
             userImageUrl: imageUrl // Return the Cloudinary URL for the next step
         });
@@ -89,7 +118,7 @@ router.post('/generate-edit', auth, async (req, res) => {
         const { preedited_prompt, userImageUrl } = req.body;
         const user = await User.findById(req.user.id);
 
-        if (user.credits < 1) {
+        if (user.credits < 2) {
             return res.status(403).json({ error: "Insufficient credits" });
         }
 
@@ -152,11 +181,30 @@ router.post('/generate-edit', auth, async (req, res) => {
         }
 
         // Deduct Credit
-        user.credits -= 1;
+        user.credits -= 2;
         await user.save();
 
+        // Save to Cloudinary and Community
+        let finalImageUrl = generatedImageUrl;
+        try {
+            const uploadResponse = await cloudinary.uploader.upload(generatedImageUrl, {
+                folder: 'art-ai-generated'
+            });
+            finalImageUrl = uploadResponse.secure_url;
+
+            await Community.create({
+                user: req.user.id,
+                original_image_url: userImageUrl,
+                generated_image_url: finalImageUrl,
+                style_prompt: preedited_prompt
+            });
+        } catch (uploadErr) {
+            console.error("Failed to upload to Cloudinary or save to Community:", uploadErr);
+            // We don't fail the request if this background step fails, but we log it.
+        }
+
         res.json({ 
-            imageUrl: generatedImageUrl || userImageUrl, // Fallback to original image
+            imageUrl: generatedImageUrl, // Return raw generated image for immediate display/download
             remainingCredits: user.credits,
             note: generatedImageUrl ? undefined : "Model returned description instead of image"
         });
@@ -230,8 +278,11 @@ router.post('/generate-edit-lite', auth, async (req, res) => {
             });
         }
 
+        // Note: Lite edits are NOT saved to Community feed as per requirement.
+        // We just return the generated image directly.
+
         res.json({ 
-            imageUrl: generatedImageUrl, // This is the Base64 Data URL or the Cloudinary URL from the next step
+            imageUrl: generatedImageUrl,
             remainingCredits: user.credits
         });
 
@@ -254,6 +305,30 @@ router.get('/credits', auth, async (req, res) => {
     } catch (err) {
         console.error("Credits Error:", err);
         res.status(500).json({ error: "Failed to fetch credits" });
+    }
+});
+
+// GET /api/user/community
+router.get('/community', async (req, res) => {
+    try {
+        // Use aggregation for random sampling
+        const count = await Community.countDocuments();
+        if (count === 0) {
+            return res.json([]);
+        }
+        
+        // Efficient random sampling using skip
+        // This avoids the memory cost of $sample and sort
+        const randomSkip = Math.floor(Math.random() * Math.max(0, count - 14));
+        
+        const posts = await Community.find()
+            .skip(randomSkip)
+            .limit(14);
+            
+        res.json(posts);
+    } catch (err) {
+        console.error("Community Fetch Error:", err);
+        res.status(500).json({ error: "Failed to fetch community posts" });
     }
 });
 
