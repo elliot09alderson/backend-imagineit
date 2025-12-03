@@ -107,8 +107,12 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
         });
 
     } catch (err) {
-        console.error("Analysis Error:", err);
-        res.status(500).json({ error: "Failed to analyze pose" });
+        console.error("Analysis Error Details:", {
+            message: err.message,
+            stack: err.stack,
+            response: err.response?.data || err.response
+        });
+        res.status(500).json({ error: "Failed to analyze pose", details: err.message });
     }
 });
 
