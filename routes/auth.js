@@ -9,7 +9,8 @@ import {
     updatProfile, 
     logoutUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    resendOtp
 } from '../controllers/authController.js';
 import auth from '../middleware/auth.js';
 import { upload } from '../config/cloudinary.js';
@@ -26,5 +27,6 @@ router.put('/profile', auth, upload.single('file'), updatProfile);
 router.post('/logout', auth, logoutUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password/:token', resetPassword);
+router.post('/resend-otp', resendOtp);
 
 export default router;

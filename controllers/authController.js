@@ -380,3 +380,36 @@ export const resetPassword = TryCatch(async (req, res) => {
     message: "Password reset successfully",
   });
 });
+
+export const resendOtp = TryCatch(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  const rateLimitKey = `login-rate-limit:${req.ip}:${email}`;
+  if (await redisClient.get(rateLimitKey)) {
+    return res.status(429).json({
+      message: "Too many requests, please try again later"
+    });
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpKey = `otp:${email}`;
+  await redisClient.set(otpKey, otp, "EX", 300);
+
+  const subject = "Resend OTP for verification";
+  const html = generateHtmlOTP({ name: user.name, email, otp });
+  
+  await sendmail({ email, subject, html });
+  await redisClient.set(rateLimitKey, "true", "EX", 60);
+
+  res.status(200).json({
+    message: "OTP resent successfully"
+  });
+});
