@@ -1,6 +1,6 @@
 import RateLimit from '../models/RateLimit.js';
 
-const DAILY_LIMIT = 120;
+const DAILY_LIMIT = 1000;
 const WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export const rateLimiter = async (req, res, next) => {
