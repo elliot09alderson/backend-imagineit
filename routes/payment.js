@@ -48,7 +48,7 @@ router.post('/create-order', auth, async (req, res) => {
         const options = {
             amount: Math.round(amount * 100), // amount in smallest currency unit (paise/cents)
             currency: currency,
-            receipt: `receipt_${Date.now()}_${req.user.id}`,
+            receipt: `rcpt_${Date.now().toString().slice(-8)}_${req.user.id.slice(-6)}`,
             notes: {
                 userId: req.user.id,
                 credits: credits
