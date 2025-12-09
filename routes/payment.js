@@ -26,22 +26,28 @@ router.post('/create-order', auth, async (req, res) => {
         if (!razorpay) {
             return res.status(503).json({ error: "Payment service unavailable (Configuration missing)" });
         }
-        const { amount, credits } = req.body;
+        const { amount, credits, currency = "INR" } = req.body;
 
         // Validate amount/credits mapping to prevent tampering
-        // 99 INR -> 10 credits
-        // 149 INR -> 20 credits
         let valid = false;
-        if (amount === 99 && credits === 10) valid = true;
-        if (amount === 149 && credits === 20) valid = true;
+        
+        if (currency === "INR") {
+            if (amount === 99 && credits === 10) valid = true;
+            if (amount === 149 && credits === 20) valid = true;
+        } else {
+            // USD or other currencies (assuming USD for now based on frontend)
+            // Allow small floating point differences if needed, but exact match is better
+            if (amount === 1.2 && credits === 10) valid = true;
+            if (amount === 1.8 && credits === 20) valid = true;
+        }
 
         if (!valid) {
             return res.status(400).json({ error: "Invalid package selected" });
         }
 
         const options = {
-            amount: amount * 100, // amount in smallest currency unit (paise)
-            currency: "INR",
+            amount: Math.round(amount * 100), // amount in smallest currency unit (paise/cents)
+            currency: currency,
             receipt: `receipt_${Date.now()}_${req.user.id}`,
             notes: {
                 userId: req.user.id,

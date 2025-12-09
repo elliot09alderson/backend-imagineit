@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  backend:
+    build: .
+    container_name: image-editor-backend
+    restart: always
+    environment:
+      - PORT=5004
+      - NODE_ENV=production
+      # Add other env vars here or use env_file
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    env_file:
+      - .env
+
+  nginx:
+    image: nginx:alpine
+    container_name: image-editor-nginx
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./frontend-build:/usr/share/nginx/html
+    depends_on:
+      - backend
