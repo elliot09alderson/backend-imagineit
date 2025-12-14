@@ -7,6 +7,9 @@ import userRoutes from './routes/user.js';
 import authRoutes from './routes/auth.js';
 import formsRoutes from './routes/forms.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
+import contactRoutes from './routes/contact.js';
+import paymentRoutes from './routes/payment.js';
+
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -34,9 +37,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/forms', formsRoutes);
-import paymentRoutes from './routes/payment.js';
 app.use('/api/payment', paymentRoutes);
-import contactRoutes from './routes/contact.js';
 app.use('/api/contact', contactRoutes);
 
 // Basic Route

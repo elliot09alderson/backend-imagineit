@@ -54,7 +54,7 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         const prompt = `Analyze the person in this image. 
-        1. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT'].
+        1. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT'].
         2. Classify the gender as either 'MALE' or 'FEMALE'.
 
         Return the response in this JSON format:
@@ -285,6 +285,29 @@ router.post('/generate-edit-lite', auth, async (req, res) => {
         // Note: Lite edits are NOT saved to Community feed as per requirement.
         // We just return the generated image directly.
 
+
+        // Save to Cloudinary and Community
+        let finalImageUrl = generatedImageUrl;
+        try {
+            // Check if it's a base64 string before uploading
+            if (generatedImageUrl.startsWith('data:image')) {
+                const uploadResponse = await cloudinary.uploader.upload(generatedImageUrl, {
+                    folder: 'art-ai-generated-lite'
+                });
+                finalImageUrl = uploadResponse.secure_url;
+
+                await Community.create({
+                    user: req.user.id,
+                    original_image_url: userImageUrl,
+                    generated_image_url: finalImageUrl,
+                    style_prompt: preedited_prompt + " (Lite)"
+                });
+                console.log("Saved Lite edit to Community and Cloudinary");
+            }
+        } catch (uploadErr) {
+            console.error("Failed to upload to Cloudinary or save to Community (Lite):", uploadErr);
+        }
+
         res.json({ 
             imageUrl: generatedImageUrl,
             remainingCredits: user.credits
@@ -315,20 +338,18 @@ router.get('/credits', auth, async (req, res) => {
 // GET /api/user/community
 router.get('/community', async (req, res) => {
     try {
-        // Use aggregation for random sampling
-        const count = await Community.countDocuments();
-        if (count === 0) {
-            return res.json([]);
-        }
-        
-        // Efficient random sampling using skip
-        // This avoids the memory cost of $sample and sort
-        const randomSkip = Math.floor(Math.random() * Math.max(0, count - 14));
-        
-        const posts = await Community.find()
-            .skip(randomSkip)
-            .limit(14);
+        // Use aggregation for truly random sampling
+        const posts = await Community.aggregate([
+            { $sample: { size: 14 } }
+        ]);
             
+        // Populate user details if needed (since aggregate returns plain objects)
+        // We can do a second query or use $lookup. For simplicity/speed with small sets, 
+        // we can assume user ID is sufficient or the frontend handles it. 
+        // But the frontend expects 'img.user' to be an object or string? 
+        // In the original find(), it wasn't populated, so it returned just the ID.
+        // Let's stick to returning similar structure.
+        
         res.json(posts);
     } catch (err) {
         console.error("Community Fetch Error:", err);

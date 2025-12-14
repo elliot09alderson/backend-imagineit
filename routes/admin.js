@@ -81,7 +81,7 @@ router.post('/extract-prompt', upload.single('image'), async (req, res) => {
         const prompt = `Analyze this image. 
         1. Describe the artistic style, lighting, composition, and subject in a detailed prompt suitable for image generation (under 50 words).
         2. Classify the gender of the main subject as either 'MALE' or 'FEMALE'.
-        3. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT'].
+        3. Classify the pose into exactly one of these categories: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT'].
 
         Return the response in this JSON format:
         {

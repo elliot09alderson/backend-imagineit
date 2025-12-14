@@ -16,25 +16,26 @@ const seedAdmin = async () => {
         await mongoose.connect(dbUri);
         console.log('Connected to MongoDB at', dbUri);
 
-        const adminEmail = 'pratikverma9691@gmail.com';
-        const adminPassword = 'Deadpool@123';
+        const adminEmail = 'itsgeekyyashaswi@gmail.com';
+        const adminPassword = 'yashaswi@123';
 
         let admin = await User.findOne({ email: adminEmail });
 
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
         if (admin) {
-            console.log('Admin user already exists. Updating role to admin...');
+            console.log('Admin user already exists. Updating role to admin and resetting password/credits...');
             admin.role = 'admin';
-            // Optionally update password if needed
-            // admin.password = await bcrypt.hash(adminPassword, 10); 
+            admin.password = hashedPassword;
+            admin.credits = 100;
             await admin.save();
         } else {
             console.log('Creating admin user...');
-            const hashedPassword = await bcrypt.hash(adminPassword, 10);
             admin = new User({
                 email: adminEmail,
                 password: hashedPassword,
                 role: 'admin',
-                credits: 100 // Give admin 100 credits
+                credits: 100
             });
             await admin.save();
         }

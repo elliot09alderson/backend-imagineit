@@ -4,7 +4,7 @@ const AssetSchema = new mongoose.Schema({
     pose_category: {
         type: String,
         required: true,
-        enum: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT', 'ACTION_SHOT']
+        enum: ['FRONT_FULL_BODY', 'SIDE_PROFILE', 'BACK_VIEW', 'SITTING', 'CLOSE_UP_PORTRAIT']
     },
     gender: {
         type: String,
