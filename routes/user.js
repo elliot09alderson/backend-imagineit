@@ -85,8 +85,7 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
                         { gender: { $exists: false } } // Handle legacy docs
                     ]
                 } 
-            },
-            { $sample: { size: 10 } }
+            }
         ]);
 
         // Fallback if no exact matches found (optional, for robustness)
@@ -94,8 +93,7 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
         if (matches.length === 0) {
              // Try matching just the pose if gender specific ones aren't found
              finalMatches = await Asset.aggregate([
-                { $match: { pose_category: poseCategory } },
-                { $sample: { size: 10 } }
+                { $match: { pose_category: poseCategory } }
              ]);
         }
 
@@ -119,7 +117,7 @@ router.post('/analyze-pose', auth, upload.single('image'), async (req, res) => {
 // POST /api/user/generate-edit
 router.post('/generate-edit', auth, async (req, res) => {
     try {
-        const { preedited_prompt, userImageUrl } = req.body;
+        const { preedited_prompt, userImageUrl, additional_prompt } = req.body;
         const user = await User.findById(req.user.id);
 
         if (user.credits < 2) {
@@ -131,8 +129,11 @@ router.post('/generate-edit', auth, async (req, res) => {
 
         const model = genAI.getGenerativeModel({ model: "gemini-3-pro-image-preview" });
         
-        const prompt = `Transform this image based on the following style description: ${preedited_prompt}. 
-        Maintain the original pose and composition but apply the artistic style. 
+        let prompt = `Transform this image based on the following style description: ${preedited_prompt}. `;
+        if (additional_prompt) {
+            prompt += `Additional user instructions: ${additional_prompt}. `;
+        }
+        prompt += `Maintain the original pose and composition but apply the artistic style. 
         Generate a new image with high quality, photorealistic or artistic finish as requested.`;
 
         console.log("Calling Gemini API for image generation...");
@@ -222,7 +223,7 @@ router.post('/generate-edit', auth, async (req, res) => {
 // POST /api/user/generate-edit-lite
 router.post('/generate-edit-lite', auth, async (req, res) => {
     try {
-        const { preedited_prompt, userImageUrl } = req.body;
+        const { preedited_prompt, userImageUrl, additional_prompt } = req.body;
         const user = await User.findById(req.user.id);
 
         if (user.credits < 1) {
@@ -242,8 +243,11 @@ router.post('/generate-edit-lite', auth, async (req, res) => {
         
         // --- PROMPT MODIFICATION ---
         // Explicitly instruct the model to output an image and set the resolution
-        const prompt = `Generate a high-quality 1024x1024 image. Transform the attached image based on the following style description: ${preedited_prompt}. 
-        Maintain the original pose and composition of the subject but apply the artistic style requested. 
+        let prompt = `Generate a high-quality 1024x1024 image. Transform the attached image based on the following style description: ${preedited_prompt}. `;
+        if (additional_prompt) {
+            prompt += `Additional user instructions: ${additional_prompt}. `;
+        }
+        prompt += `Maintain the original pose and composition of the subject but apply the artistic style requested. 
         Output ONLY the resulting image.`;
 
         console.log("Calling Gemini API for image generation (Lite)...");
