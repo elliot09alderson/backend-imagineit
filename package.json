@@ -27,7 +27,7 @@
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^10.1.4",
     "razorpay": "^2.9.6",
     "zod": "^4.1.13"
   },
